@@ -1,15 +1,29 @@
 # 🚀 MAMP Projects Manager v3.0.0
 
-**Công cụ quản lý dự án web toàn diện cho MAMP (Mac Apache MySQL PHP)** - Tự động phát hiện cấu hình và tạo virtual host một cách thông minh, hỗ trợ migration giữa các máy khác nhau.
+**Công cụ quản lý dự án web toàn diện cho MAMP (Mac Apache MySQL PHP)** - Hệ thống quản lý virtual host thông minh với khả năng migration tự động, phát hiện cấu hình động, và giao diện web hiện đại.
 
-## ✨ Tính năng mới trong v3.0.0
+## ✨ Tính năng đột phá trong v3.0.0
 
-### 🔄 Smart Migration System
-- **Auto Path Detection**: Tự động phát hiện và sửa đường dẫn project khi di chuyển qua máy mới
-- **Flexible Migration Options**: 3 tùy chọn migration linh hoạt (Interactive, Custom Directory, MAMP Projects)
-- **Dynamic User Detection**: Tự động phát hiện thư mục home của user hiện tại
-- **Auto Backup**: Backup tự động trước khi thay đổi cấu hình
-- **Placeholder Creation**: Tạo thư mục và file HTML mẫu cho projects mới
+### 🎯 Cross-Machine Migration System
+- **🔄 Intelligent Path Fixing**: Tự động phát hiện và sửa các đường dẫn DocumentRoot bị lỗi khi di chuyển giữa các máy
+- **🎛️ 3 Migration Modes**: Interactive (tương tác), Auto-fix to Directory (tự động sửa theo thư mục), Auto-fix to MAMP (sửa về MAMP htdocs)
+- **👤 Dynamic User Detection**: Tự động phát hiện user hiện tại và thư mục home trên bất kỳ máy Mac nào
+- **💾 Smart Backup System**: Backup tự động các file cấu hình quan trọng trước khi thay đổi
+- **📁 Placeholder Generation**: Tự động tạo thư mục và file HTML mẫu cho các project bị thiếu
+
+### 🌟 Enhanced User Interface
+- **📱 Responsive Design**: Giao diện web responsive hoạt động tốt trên mọi kích thước màn hình
+- **⚡ Real-time Status**: Hiển thị trạng thái project và hệ thống thời gian thực
+- **🎨 Modern UI Components**: Toast notifications, loading states, modal dialogs hiện đại
+- **🔍 Smart Error Detection**: Tự động phát hiện lỗi kết nối và đưa ra hướng dẫn khắc phục
+- **📋 Copy-to-Clipboard**: Sao chép commands và thông tin hữu ích chỉ với một click
+
+### 🛠️ Advanced System Controls
+- **🔄 Apache Server Management**: Restart Apache trực tiếp từ giao diện web
+- **📂 Project Location Updates**: Thay đổi document root của project mà không cần tạo lại
+- **🔧 Dynamic Port Detection**: Tự động phát hiện và hỗ trợ mọi cấu hình port Apache
+- **🧪 Comprehensive Testing**: Hệ thống test tương thích port và connectivity tích hợp
+- **📊 System Health Monitoring**: Theo dõi trạng thái Apache, hosts file, và virtual hosts
 
 ### 🎯 Tính năng chính
 
@@ -42,13 +56,25 @@
 ```bash
 # Download and extract to Desktop
 cd ~/Desktop
-curl -L -o mamp-projects-manager.zip https://github.com/yourusername/mamp-projects-manager/archive/main.zip
+git clone https://github.com/dangpv94/gbu-mamp-projects-manager.git
+cd gbu-mamp-projects-manager
+
+# Run one-click installer
+chmod +x INSTALL_NOW.sh
+./INSTALL_NOW.sh
+```
+
+#### Option A2: Download ZIP (Alternative)
+```bash
+# Download and extract to Desktop
+cd ~/Desktop
+curl -L -o mamp-projects-manager.zip https://github.com/dangpv94/gbu-mamp-projects-manager/archive/main.zip
 unzip mamp-projects-manager.zip
 
 # Run installer
-cd mamp-projects-manager-main
-chmod +x install.sh
-./install.sh
+cd gbu-mamp-projects-manager-main
+chmod +x INSTALL_NOW.sh
+./INSTALL_NOW.sh
 ```
 
 #### Option B: Manual Installation
@@ -257,23 +283,98 @@ sudo chmod 644 /Applications/MAMP/conf/apache/extra/httpd-vhosts.conf
 
 ## 📦 Migration & Updates
 
-### Moving Between Machines
-1. **Copy package**: Transfer entire `/Applications/MAMP/htdocs/projects/` folder
-2. **No configuration needed**: Port detection happens automatically
-3. **Verify compatibility**: Run `test-port-compatibility.php` on new machine
-4. **Recreate projects**: Use the interface to recreate virtual hosts as needed
+### 🚀 Cross-Machine Migration (v3.0.0 Feature)
 
-### Upgrading from v1.x
-1. **Backup existing**: Copy current configuration files
-2. **Install v2.0**: Follow installation instructions
-3. **Auto-migration**: Existing projects will work with detected port
-4. **Test functionality**: Run compatibility test to verify everything works
+#### Automatic Migration with Path Fixing
+```bash
+# After copying package to new machine, run path fixer
+cd /Applications/MAMP/htdocs/projects/
+chmod +x fix-project-paths.sh
+./fix-project-paths.sh
+```
 
-### Changing MAMP Ports
+#### Migration Options:
+
+**1. Interactive Mode** (Recommended)
+- Manually select correct path for each broken project
+- Full control over project location decisions
+- Safe and precise migration
+
+**2. Auto-fix to Directory**
+- Automatically fixes all projects to a chosen directory (e.g., ~/Works)
+- Creates missing project folders with placeholder files
+- Fastest migration for organized projects
+
+**3. Auto-fix to MAMP**
+- Moves all projects to MAMP htdocs directory
+- Ensures all projects work immediately
+- Best for centralized project management
+
+### Moving Between Machines (Step-by-Step)
+
+1. **📋 Export from Source Machine**:
+   ```bash
+   # Create complete backup
+   cd /Applications/MAMP/htdocs
+   tar -czf ~/Desktop/mamp-projects-export.tar.gz projects/
+   ```
+
+2. **📦 Import to Target Machine**:
+   ```bash
+   # Install on new machine
+   cd ~/Desktop
+   git clone https://github.com/dangpv94/gbu-mamp-projects-manager.git
+   cd gbu-mamp-projects-manager
+   ./INSTALL_NOW.sh
+   
+   # Import old projects (if you have backup)
+   tar -xzf ~/Desktop/mamp-projects-export.tar.gz -C /Applications/MAMP/htdocs/
+   ```
+
+3. **🔧 Fix Paths Automatically**:
+   ```bash
+   # Run migration tool
+   cd /Applications/MAMP/htdocs/projects/
+   ./fix-project-paths.sh
+   ```
+
+4. **✅ Verification**:
+   - Access web interface at detected port
+   - Check all projects load correctly
+   - Run compatibility test if needed
+
+### Upgrading from Previous Versions
+
+#### From v2.x to v3.0.0
+1. **Backup existing configuration**
+2. **Install v3.0.0** using installation guide
+3. **Existing projects continue to work** with enhanced features
+4. **New migration tools available** for cross-machine moves
+
+#### From v1.x to v3.0.0
+1. **Complete migration recommended** due to architecture changes
+2. **Backup all project files and configurations**
+3. **Fresh install v3.0.0** for best compatibility
+4. **Recreate projects** using the modern interface
+
+### MAMP Configuration Changes
+
+#### Changing MAMP Ports
 1. **Update MAMP**: Change ports in MAMP preferences
-2. **Restart Apache**: Restart MAMP Apache service
-3. **Auto-detection**: System automatically detects new port for new projects
-4. **Update existing**: May need to recreate existing virtual hosts with new port
+2. **Restart Apache**: Restart MAMP Apache service  
+3. **Auto-detection**: v3.0.0 automatically detects new port
+4. **Existing projects**: Continue working with updated port detection
+5. **No manual changes needed**: System adapts automatically
+
+#### Port Migration
+```bash
+# If projects aren't working after port change
+cd /Applications/MAMP/htdocs/projects/
+/Applications/MAMP/bin/php/php8.2.20/bin/php test-port-compatibility.php
+
+# Restart Apache if needed
+# Use web interface "Restart Apache" button
+```
 
 ## 🗑️ Uninstallation
 
@@ -419,29 +520,62 @@ cp /etc/hosts ~/Desktop/hosts-backup
 
 ## ⭐ Features Comparison
 
-| Feature | v1.x | v2.0 |
-|---------|------|------|
-| Port Support | Fixed port 80 only | Any port (dynamic detection) |
-| Configuration | Manual setup required | Zero configuration |
-| Compatibility | MAMP with port 80 only | All MAMP configurations |
-| Migration | Manual reconfiguration | Seamless auto-migration |
-| Testing | Manual verification | Built-in compatibility tests |
-| Error Detection | Basic | Advanced with auto-troubleshooting |
-| Project Management | Basic CRUD | Advanced with system controls |
+| Feature | v1.x | v2.0 | v3.0.0 |
+|---------|------|------|--------|
+| Port Support | Fixed port 80 only | Any port (dynamic detection) | Universal dynamic port detection |
+| Configuration | Manual setup required | Zero configuration | Zero config + auto path fixing |
+| Compatibility | MAMP with port 80 only | All MAMP configurations | All MAMP + cross-machine |
+| Migration | Manual reconfiguration | Basic auto-migration | Advanced migration with 3 modes |
+| Testing | Manual verification | Built-in compatibility tests | Comprehensive testing + debugging |
+| Error Detection | Basic | Advanced with auto-troubleshooting | Smart detection with auto-fix |
+| Project Management | Basic CRUD | Advanced with system controls | Full system + Apache management |
+| User Interface | None | Basic web interface | Modern responsive UI |
+| Path Management | Fixed paths | Static paths | Dynamic user-aware paths |
+| Backup System | Manual | None | Automatic smart backups |
 
 ---
 
-## 🎉 Version 2.0 Benefits
+## 🎉 Version 3.0.0 Revolutionary Features
 
-- **🌐 Universal Compatibility**: Works with ANY MAMP port configuration
-- **⚡ Zero Setup**: No configuration needed when moving between machines  
-- **🔧 Smart Detection**: Automatically adapts to your MAMP setup
-- **🧪 Built-in Testing**: Comprehensive compatibility and functionality tests
-- **🛠️ Enhanced Management**: Advanced project and system controls
-- **📚 Better Documentation**: Comprehensive guides and troubleshooting
+### 🚀 **Cross-Machine Intelligence**
+- **🔄 Smart Migration**: Automatic path detection and fixing when moving between Macs
+- **👤 User-Aware**: Dynamically detects current user and adapts all paths accordingly
+- **🎛️ Multiple Fix Modes**: Interactive, directory-based, or MAMP-based migration options
+- **💾 Safe Operations**: Automatic backups before any system changes
 
-**Ready to streamline your MAMP development workflow? Install v2.0 today!** 🚀
+### 🌟 **Advanced User Experience** 
+- **📱 Modern Interface**: Fully responsive web UI with real-time status updates
+- **⚡ Instant Feedback**: Toast notifications, loading states, and progress indicators
+- **🔍 Smart Diagnostics**: Automatic error detection with copy-to-clipboard fix commands
+- **🎨 Professional Design**: Clean, intuitive interface following modern UI principles
+
+### 🛠️ **Enterprise-Grade Management**
+- **🔄 Apache Control**: Direct server restart from web interface
+- **📂 Location Management**: Update project paths without recreating virtual hosts
+- **🧪 Health Monitoring**: Comprehensive system health checks and compatibility testing
+- **📊 Real-time Status**: Live monitoring of Apache, hosts file, and project connectivity
+
+### 🔧 **Developer-Friendly Tools**
+- **📋 One-Click Operations**: Copy commands, open files, and quick actions
+- **🚨 Proactive Alerts**: Early detection of configuration issues
+- **🔗 Smart Linking**: Automatic detection and creation of missing components
+- **📈 Performance Optimized**: Minimal overhead with intelligent caching
+
+**Ready to experience the future of MAMP development? Upgrade to v3.0.0 today!** 🎯
 
 ---
 
-*MAMP Projects Manager v2.0 - Making local development effortless across all configurations.*
+## 📦 Quick Installation
+
+```bash
+# One-click installer
+cd ~/Desktop
+git clone https://github.com/dangpv94/gbu-mamp-projects-manager.git
+cd gbu-mamp-projects-manager
+chmod +x INSTALL_NOW.sh
+./INSTALL_NOW.sh
+```
+
+---
+
+*MAMP Projects Manager v3.0.0 - The ultimate MAMP development companion with cross-machine intelligence.*

@@ -251,34 +251,168 @@ fetch('api.php', {
 });
 ```
 
-## 🛠️ Troubleshooting
+## 🛠️ Troubleshooting & Auto-Fix Suite
 
-### "This site can't be reached"
-1. **Check hosts file**: Verify `/etc/hosts` contains domain entry
-2. **Verify Apache port**: Run compatibility test to check port detection
-3. **Restart Apache**: Use built-in restart button or MAMP control panel
-4. **Clear DNS cache**: `sudo dscacheutil -flushcache`
+### 🚀 Quick Fix Tool (`quick-fix.sh`)
+**30-second solution for common issues**
 
-### Port Detection Issues
-1. **Verify MAMP installation**: Check if `/Applications/MAMP/conf/apache/httpd.conf` exists
-2. **Check file permissions**: Ensure PHP can read Apache config files
-3. **Restart services**: Restart MAMP Apache and MySQL services
-4. **Run diagnostic**: Use `test-port-compatibility.php` for detailed analysis
-
-### Virtual Host Not Working
-1. **Check Apache syntax**: `/Applications/MAMP/Library/bin/httpd -t`
-2. **View virtual hosts**: `/Applications/MAMP/Library/bin/httpd -S`  
-3. **Check error logs**: `/Applications/MAMP/logs/apache_error.log`
-4. **Verify port match**: Ensure virtual host port matches Apache Listen port
-
-### Permission Issues
+When projects aren't working, run the quick fix first:
 ```bash
-# Fix project folder permissions
-sudo chmod -R 755 /Applications/MAMP/htdocs/projects/
-sudo chown -R $(whoami):staff /Applications/MAMP/htdocs/projects/
+cd /Applications/MAMP/htdocs/projects/
+./quick-fix.sh
+```
 
-# Fix Apache config permissions (if needed)
-sudo chmod 644 /Applications/MAMP/conf/apache/extra/httpd-vhosts.conf
+**Automatically fixes:**
+- ✅ Missing domains in hosts file
+- ✅ Missing project directories (creates beautiful placeholders)
+- ✅ DNS cache issues
+- ✅ Tests HTTP connectivity for all projects
+- ✅ Smart port detection (handles IP:PORT formats)
+
+### 🔥 Apache Startup Failure Diagnostics
+**Comprehensive solution for "Apache couldn't be started" errors**
+
+If MAMP shows "Apache couldn't be started":
+```bash
+cd /Applications/MAMP/htdocs/projects/
+./troubleshoot-mamp.sh
+# Choose option 2: Diagnose Apache Startup Fail
+```
+
+**Automatically detects and fixes:**
+- 🔍 **Port conflicts** (Skype, AirPlay, other apps using same port)
+- 📝 **Apache syntax errors** (shows exact file and line with error)
+- 🔐 **Log file permission issues**
+- 📁 **Missing log directories**
+- 🔄 **Interactive process termination** for conflicting applications
+
+### 🔧 Super Auto-Fix (`troubleshoot-mamp.sh`)
+**Comprehensive diagnosis and auto-fix with safety checks**
+
+```bash
+cd /Applications/MAMP/htdocs/projects/
+./troubleshoot-mamp.sh
+# Choose option 3: Auto-Fix Common Issues
+```
+
+**Advanced features:**
+- ✅ **Pre-validation**: Apache syntax check before making changes
+- ✅ **Port conflict resolution**: Interactive process termination
+- ✅ **Log file fixes**: Automatic permission and directory creation
+- ✅ **Virtual host port matching**: Fixes port mismatches
+- ✅ **Hosts file management**: Adds missing entries
+- ✅ **Directory creation**: Creates missing project folders
+- ✅ **DNS cache flushing**: Clears system DNS cache
+- ✅ **Apache restart**: Safe restart with verification
+- ✅ **Automatic backup**: Backs up configs before changes
+
+### 📊 Full System Diagnosis
+**Complete health check for MAMP configuration**
+
+```bash
+./troubleshoot-mamp.sh
+# Choose option 1: Run Full Diagnosis
+```
+
+**Comprehensive analysis:**
+- 🔍 MAMP status and port detection
+- 📋 Virtual host configuration analysis
+- 🌐 Hosts file validation
+- 🔗 HTTP connectivity testing
+- 💡 Detailed recommendations and manual fix commands
+
+### 🧪 Demo & Testing (`demo-issues.sh`)
+**Create test scenarios for troubleshooting validation**
+
+```bash
+./demo-issues.sh
+# Creates realistic MAMP problems to test fix tools
+```
+
+**Test scenarios:**
+- Missing hosts file entries
+- Wrong DocumentRoot paths
+- Port mismatches (80 vs 8888)
+- Empty project directories
+- Safe backup/restore for testing
+
+### 🎯 Common Issue Solutions
+
+#### "This site can't be reached"
+```bash
+# Quick solution
+./quick-fix.sh
+
+# Manual fix
+sudo nano /etc/hosts
+# Add: 127.0.0.1    your-domain.local
+sudo dscacheutil -flushcache
+```
+
+#### "Apache couldn't be started"
+```bash
+# Comprehensive diagnosis
+./troubleshoot-mamp.sh
+# Option 2: Diagnose Apache Startup Fail
+
+# Or run auto-fix
+# Option 3: Auto-Fix Common Issues
+```
+
+#### Projects showing MAMP default page
+```bash
+# Full auto-fix
+./troubleshoot-mamp.sh
+# Option 3: Auto-Fix Common Issues
+
+# This fixes DocumentRoot issues automatically
+```
+
+#### Port detection problems
+```bash
+# The new scripts handle these automatically:
+# - Listen 0.0.0.0:8888 format
+# - ServerName localhost:8888 format
+# - Mixed configurations
+```
+
+### 🛡️ Safety Features
+**All troubleshooting tools include:**
+- ✅ **Automatic backups** before any configuration changes
+- ✅ **Syntax validation** before applying Apache config changes
+- ✅ **Interactive confirmations** for potentially destructive actions
+- ✅ **Detailed logging** of all changes made
+- ✅ **Rollback capabilities** for emergency recovery
+- ✅ **Non-destructive operations** that preserve existing projects
+
+### 📋 Manual Troubleshooting Commands
+For advanced users who prefer manual diagnosis:
+
+```bash
+# Check MAMP process
+pgrep -f "Applications/MAMP/Library/bin/httpd"
+
+# Check Apache port
+grep "^Listen\|^ServerName" /Applications/MAMP/conf/apache/httpd.conf
+
+# Test Apache configuration
+sudo /Applications/MAMP/bin/apachectl -t
+
+# View virtual hosts
+sudo /Applications/MAMP/bin/apachectl -S
+
+# Check port conflicts
+lsof -i :8888
+
+# View error logs
+tail -f /Applications/MAMP/logs/apache_error.log
+
+# Test domain resolution
+nslookup your-domain.local
+
+# Flush DNS cache
+sudo dscacheutil -flushcache
+sudo killall -HUP mDNSResponder
 ```
 
 ## 📦 Migration & Updates

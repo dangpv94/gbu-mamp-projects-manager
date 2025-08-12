@@ -34,8 +34,34 @@ VHOSTS_FILE="/Applications/MAMP/conf/apache/extra/httpd-vhosts.conf"
 HOSTS_FILE="/etc/hosts"
 APACHE_CONF="/Applications/MAMP/conf/apache/httpd.conf"
 
-# Get MAMP port
-MAMP_PORT=$(/Applications/MAMP/bin/apachectl -S | grep "port " | head -n 1 | sed -e 's/.*port //g' -e 's/ .*//')
+# Get MAMP port using improved detection
+get_mamp_port() {
+    # Try multiple methods to detect the port
+    local port=""
+    
+    # Method 1: Check Listen directive for IP:PORT format
+    if [ -f "$APACHE_CONF" ]; then
+        port=$(grep "^Listen" "$APACHE_CONF" | head -1 | sed 's/.*://g' | tr -d ' ')
+        if [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" != "0" ]; then
+            echo "$port"
+            return
+        fi
+    fi
+    
+    # Method 2: Check ServerName directive
+    if [ -f "$APACHE_CONF" ]; then
+        port=$(grep "^ServerName" "$APACHE_CONF" | head -1 | sed 's/.*://g' | tr -d ' ')
+        if [[ "$port" =~ ^[0-9]+$ ]]; then
+            echo "$port"
+            return
+        fi
+    fi
+    
+    # Default fallback
+    echo "8888"
+}
+
+MAMP_PORT=$(get_mamp_port)
 
 echo "🔍 Quick diagnosis..."
 

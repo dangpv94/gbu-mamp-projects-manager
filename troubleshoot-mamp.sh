@@ -48,15 +48,38 @@ mkdir -p "$BACKUP_DIR"
 
 # Function to get MAMP Apache port
 get_mamp_port() {
-    if [ -f "/Applications/MAMP/bin/apachectl" ]; then
-        port=$(/Applications/MAMP/bin/apachectl -S | grep "port " | head -n 1 | sed -e 's/.*port //g' -e 's/ .*//')
-        echo "${port:-8888}"
-    elif [ -f "$APACHE_CONF" ]; then
-        port=$(grep "^Listen" "$APACHE_CONF" | head -1 | sed 's/Listen //' | sed 's/:.*//')
-        echo "${port:-8888}"
-    else
-        echo "8888"
+    # Try multiple methods to detect the port
+    local port=""
+    
+    # Method 1: Check Listen directive for IP:PORT format
+    if [ -f "$APACHE_CONF" ]; then
+        port=$(grep "^Listen" "$APACHE_CONF" | head -1 | sed 's/.*://g' | tr -d ' ')
+        if [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" != "0" ]; then
+            echo "$port"
+            return
+        fi
     fi
+    
+    # Method 2: Check ServerName directive
+    if [ -f "$APACHE_CONF" ]; then
+        port=$(grep "^ServerName" "$APACHE_CONF" | head -1 | sed 's/.*://g' | tr -d ' ')
+        if [[ "$port" =~ ^[0-9]+$ ]]; then
+            echo "$port"
+            return
+        fi
+    fi
+    
+    # Method 3: Try apachectl if available
+    if [ -f "/Applications/MAMP/bin/apachectl" ]; then
+        port=$(/Applications/MAMP/bin/apachectl -S 2>/dev/null | grep "port " | head -n 1 | sed -e 's/.*port //g' -e 's/ .*//' 2>/dev/null)
+        if [[ "$port" =~ ^[0-9]+$ ]]; then
+            echo "$port"
+            return
+        fi
+    fi
+    
+    # Default fallback
+    echo "8888"
 }
 
 MAMP_PORT=$(get_mamp_port)
@@ -254,7 +277,7 @@ test_connectivity() {
 
 # Function to auto-fix common issues
 auto_fix_issues() {
-    print_info "Starting automatic fixes..."
+    print_info "Starting comprehensive automatic fixes..."
     
     local backup_suffix=$(date +%Y%m%d_%H%M%S)
     
@@ -262,6 +285,70 @@ auto_fix_issues() {
     cp "$VHOSTS_FILE" "$BACKUP_DIR/vhosts_backup_$backup_suffix.conf"
     cp "$HOSTS_FILE" "$BACKUP_DIR/hosts_backup_$backup_suffix"
     print_status "Configuration files backed up"
+    
+    # PRE-CHECK: Apache syntax validation (Critical - must pass before proceeding)
+    print_info "Pre-check: Validating Apache configuration syntax..."
+    local config_test_output
+    config_test_output=$(sudo /Applications/MAMP/bin/apachectl -t 2>&1)
+    
+    if ! echo "$config_test_output" | grep -q "Syntax OK"; then
+        print_error "Apache configuration has syntax errors! Cannot proceed with auto-fix."
+        echo -e "${RED}$config_test_output${NC}"
+        print_warning "Please fix the syntax errors manually first, then run auto-fix again."
+        return 1
+    fi
+    print_status "Apache configuration syntax is valid"
+    
+    # STEP 1: Handle port conflicts (Apache startup blocker)
+    print_info "Checking for port conflicts on port $MAMP_PORT..."
+    local conflicting_process=$(lsof -i :$MAMP_PORT 2>/dev/null | grep LISTEN | awk '{print $1, $2}' | head -1)
+    
+    if [ -n "$conflicting_process" ]; then
+        local process_name=$(echo "$conflicting_process" | awk '{print $1}')
+        local process_id=$(echo "$conflicting_process" | awk '{print $2}')
+        print_error "Port $MAMP_PORT is being used by: $process_name (PID: $process_id)"
+        
+        echo -n "Do you want to terminate this process to free the port? (y/n): "
+        read -r kill_confirm
+        
+        if [[ $kill_confirm =~ ^[Yy]$ ]]; then
+            if sudo kill -9 "$process_id" 2>/dev/null; then
+                print_status "Successfully terminated conflicting process (PID: $process_id)"
+                sleep 2
+            else
+                print_error "Failed to terminate process. You may need to quit the application manually."
+            fi
+        else
+            print_warning "Port conflict not resolved. Apache may fail to start."
+        fi
+    else
+        print_status "Port $MAMP_PORT is available"
+    fi
+    
+    # STEP 2: Fix log file permissions
+    print_info "Checking and fixing log file permissions..."
+    local log_dir="/Applications/MAMP/logs"
+    local error_log="$log_dir/apache_error.log"
+    local access_log="$log_dir/apache_access.log"
+    
+    # Create logs directory if it doesn't exist
+    if [ ! -d "$log_dir" ]; then
+        sudo mkdir -p "$log_dir"
+        print_status "Created logs directory: $log_dir"
+    fi
+    
+    # Fix log file permissions
+    for log_file in "$error_log" "$access_log"; do
+        if [ -f "$log_file" ]; then
+            sudo chmod 666 "$log_file" 2>/dev/null
+            print_status "Fixed permissions for $(basename "$log_file")"
+        else
+            # Create empty log file with correct permissions
+            sudo touch "$log_file"
+            sudo chmod 666 "$log_file"
+            print_status "Created and set permissions for $(basename "$log_file")"
+        fi
+    done
     
     # Fix 1: Port mismatch in virtual hosts
     print_info "Checking for port mismatches..."
@@ -372,6 +459,57 @@ EOF
     fi
 }
 
+# Function to check for Apache startup issues
+check_apache_startup_issues() {
+    print_info "Diagnosing Apache startup issues..."
+    
+    # 1. Check for port conflicts
+    print_info "Checking for port conflicts on port $MAMP_PORT..."
+    local conflicting_process=$(lsof -i :$MAMP_PORT 2>/dev/null | grep LISTEN | head -1 | awk '{print $1, $2}')
+    
+    if [ -n "$conflicting_process" ]; then
+        local process_name=$(echo "$conflicting_process" | awk '{print $1}')
+        local process_id=$(echo "$conflicting_process" | awk '{print $2}')
+        print_error "Port $MAMP_PORT is already in use by: $process_name (PID: $process_id)"
+        
+        # Show all processes using the port
+        local all_processes=$(lsof -i :$MAMP_PORT 2>/dev/null | grep LISTEN | awk '{print $2}' | sort -u | tr '\n' ' ')
+        if [ $(echo "$all_processes" | wc -w) -gt 1 ]; then
+            print_info "All processes using port $MAMP_PORT: PIDs $all_processes"
+        fi
+        
+        print_warning "Suggestion: Quit the conflicting application or run 'sudo kill -9 $process_id'"
+    else
+        print_status "Port $MAMP_PORT is free"
+    fi
+    
+    # 2. Check Apache syntax
+    print_info "Checking Apache configuration syntax..."
+    local config_test_output
+    config_test_output=$(sudo /Applications/MAMP/bin/apachectl -t 2>&1)
+    
+    if echo "$config_test_output" | grep -q "Syntax OK"; then
+        print_status "Apache configuration syntax is OK"
+    else
+        print_error "Apache configuration syntax error found!"
+        echo -e "${RED}$config_test_output${NC}"
+    fi
+    
+    # 3. Check log file permissions
+    print_info "Checking log file permissions..."
+    local log_file="/Applications/MAMP/logs/apache_error.log"
+    if [ -f "$log_file" ]; then
+        if [ -w "$log_file" ]; then
+            print_status "Log file permissions are OK"
+        else
+            print_error "Log file is not writable: $log_file"
+            print_warning "Suggestion: Run 'sudo chmod 666 $log_file'"
+        fi
+    else
+        print_warning "Log file not found, will be created by MAMP on successful start."
+    fi
+}
+
 # Function to show summary and recommendations
 show_recommendations() {
     echo ""
@@ -399,14 +537,15 @@ show_recommendations() {
 show_menu() {
     echo "🛠️  TROUBLESHOOTING OPTIONS"
     echo "=========================="
-    echo "1. 🔍 Run Full Diagnosis"
-    echo "2. 🔧 Auto-Fix Common Issues"
-    echo "3. 🩺 Check MAMP Status Only"
-    echo "4. 🌐 Test Project Connectivity"
-    echo "5. 📝 Show Manual Fix Commands"
-    echo "6. 🚪 Exit"
+echo "1. 🔍 Run Full Diagnosis"
+    echo "2. 🔥 Diagnose Apache Startup Fail"
+    echo "3. 🔧 Auto-Fix Common Issues"
+    echo "4. 🩺 Check MAMP Status Only"
+    echo "5. 🌐 Test Project Connectivity"
+    echo "6. 📝 Show Manual Fix Commands"
+    echo "7. 🚪 Exit"
     echo ""
-    read -p "Choose an option (1-6): " choice
+    read -p "Choose an option (1-7): " choice
     
     case $choice in
         1)
@@ -420,22 +559,33 @@ show_menu() {
             ;;
         2)
             echo ""
-            print_info "Running auto-fix..."
-            if check_mamp_status; then
-                auto_fix_issues
-                echo ""
-                print_status "Auto-fix completed! Running verification..."
-                sleep 2
-                test_connectivity
-            else
-                print_error "Please start MAMP first"
-            fi
+            check_apache_startup_issues
             ;;
         3)
             echo ""
-            check_mamp_status
+            print_info "Running comprehensive auto-fix..."
+            
+            # Run auto-fix regardless of MAMP status - it can fix startup issues
+            if auto_fix_issues; then
+                echo ""
+                print_status "Auto-fix completed! Running verification..."
+                sleep 2
+                
+                # Check if MAMP is now running and test connectivity
+                if check_mamp_status; then
+                    test_connectivity
+                else
+                    print_warning "MAMP is still not running. Try starting it manually and check for any error messages."
+                fi
+            else
+                print_error "Auto-fix encountered critical issues. Please review the errors above."
+            fi
             ;;
         4)
+            echo ""
+            check_mamp_status
+            ;;
+        5)
             echo ""
             if check_mamp_status; then
                 test_connectivity
@@ -443,10 +593,10 @@ show_menu() {
                 print_error "MAMP is not running"
             fi
             ;;
-        5)
+        6)
             show_recommendations
             ;;
-        6)
+        7)
             print_info "Goodbye!"
             exit 0
             ;;

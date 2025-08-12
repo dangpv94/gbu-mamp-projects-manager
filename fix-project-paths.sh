@@ -118,29 +118,6 @@ echo ""
 
 read -p "Choose an option (1-4): " choice
 
-case $choice in
-    1)
-        print_info "Starting interactive path fixing..."
-        fix_paths_interactive
-        ;;
-    2)
-        print_info "Auto-fixing paths to custom directory..."
-        fix_paths_to_custom_directory
-        ;;
-    3)
-        print_info "Auto-fixing paths to MAMP projects directory..."
-        fix_paths_to_mamp_projects
-        ;;
-    4)
-        print_info "Migration cancelled."
-        exit 0
-        ;;
-    *)
-        print_error "Invalid choice. Exiting."
-        exit 1
-        ;;
-esac
-
 # Function for interactive fixing
 fix_paths_interactive() {
     local temp_file=$(mktemp)
@@ -432,6 +409,30 @@ fix_paths_to_mamp_projects() {
         print_info "No paths needed to be updated."
     fi
 }
+
+# Handle user choice
+case $choice in
+    1)
+        print_info "Starting interactive path fixing..."
+        fix_paths_interactive
+        ;;
+    2)
+        print_info "Auto-fixing paths to custom directory..."
+        fix_paths_to_custom_directory
+        ;;
+    3)
+        print_info "Auto-fixing paths to MAMP projects directory..."
+        fix_paths_to_mamp_projects
+        ;;
+    4)
+        print_info "Migration cancelled."
+        exit 0
+        ;;
+    *)
+        print_error "Invalid choice. Exiting."
+        exit 1
+        ;;
+esac
 
 echo ""
 print_status "Migration completed!"

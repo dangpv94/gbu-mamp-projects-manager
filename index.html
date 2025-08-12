@@ -337,6 +337,104 @@
             </div>
         </div>
 
+        <!-- Path Diagnosis & Auto-Fix Section -->
+        <div style="margin-top: 30px; padding: 20px; background: #fff3e0; border-radius: 5px; border-left: 4px solid #ff9800;">
+            <h3 style="color: #e65100; margin-top: 0; display: flex; align-items: center; gap: 8px;">
+                🔍 Path Diagnosis & Auto-Fix
+            </h3>
+            <p style="color: #bf360c; margin-bottom: 20px;">Diagnose and automatically fix project path issues when copying between machines.</p>
+            
+            <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px;">
+                <!-- Diagnose Issues Button -->
+                <button id="diagnosePathsBtn" onclick="diagnoseProjectPaths()" style="
+                    padding: 12px 20px;
+                    background: linear-gradient(135deg, #ff9800, #f57c00);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: bold;
+                    transition: all 0.3s ease;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    box-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
+                " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(255, 152, 0, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(255, 152, 0, 0.3)'">
+                    🔍 Check Issues
+                </button>
+                
+                <!-- Auto-Fix Smart Button -->
+                <button id="autoFixSmartBtn" onclick="autoFixPaths('smart')" disabled style="
+                    padding: 12px 20px;
+                    background: linear-gradient(135deg, #4caf50, #388e3c);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: bold;
+                    transition: all 0.3s ease;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);
+                    opacity: 0.6;
+                " onmouseover="if(!this.disabled) { this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(76, 175, 80, 0.4)'; }" onmouseout="if(!this.disabled) { this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(76, 175, 80, 0.3)'; }">
+                    🎯 Smart Fix
+                </button>
+                
+                <!-- Auto-Fix to Works Button -->
+                <button id="autoFixWorksBtn" onclick="autoFixPaths('works')" disabled style="
+                    padding: 12px 20px;
+                    background: linear-gradient(135deg, #2196f3, #1976d2);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: bold;
+                    transition: all 0.3s ease;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
+                    opacity: 0.6;
+                " onmouseover="if(!this.disabled) { this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(33, 150, 243, 0.4)'; }" onmouseout="if(!this.disabled) { this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(33, 150, 243, 0.3)'; }">
+                    💼 Fix to Works
+                </button>
+                
+                <!-- Auto-Fix to MAMP Button -->
+                <button id="autoFixMampBtn" onclick="autoFixPaths('mamp')" disabled style="
+                    padding: 12px 20px;
+                    background: linear-gradient(135deg, #9c27b0, #7b1fa2);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: bold;
+                    transition: all 0.3s ease;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    box-shadow: 0 2px 4px rgba(156, 39, 176, 0.3);
+                    opacity: 0.6;
+                " onmouseover="if(!this.disabled) { this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(156, 39, 176, 0.4)'; }" onmouseout="if(!this.disabled) { this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(156, 39, 176, 0.3)'; }">
+                    🌐 Fix to MAMP
+                </button>
+            </div>
+            
+            <!-- Diagnosis Results -->
+            <div id="diagnosisResults" style="display: none; margin-top: 20px;"></div>
+            
+            <div style="margin-top: 15px; padding: 12px; background: rgba(191, 54, 12, 0.1); border-radius: 6px;">
+                <p style="margin: 0; color: #bf360c; font-size: 13px;">
+                    💡 <strong>How it works:</strong> Smart Fix tries to find your projects in common locations. Works Fix moves to ~/Works directory. MAMP Fix moves to MAMP's htdocs folder.
+                </p>
+            </div>
+        </div>
+
         <div style="margin-top: 30px; padding: 20px; background: #e7f3ff; border-radius: 5px;">
             <h3 style="color: #0066cc; margin-top: 0;">📝 Quick Notes:</h3>
             <ul style="color: #333;">
@@ -2459,6 +2557,455 @@ sudo nano /etc/hosts`;
                 newLocationInput.addEventListener('input', validateLocationUpdate);
             }
         });
+        
+        // ===== PATH DIAGNOSIS & AUTO-FIX FUNCTIONS =====
+        
+        // Global variable to store diagnosis results
+        let currentDiagnosis = null;
+        
+        // Diagnose project path issues
+        async function diagnoseProjectPaths() {
+            const btn = document.getElementById('diagnosePathsBtn');
+            const resultsDiv = document.getElementById('diagnosisResults');
+            const fixButtons = ['autoFixSmartBtn', 'autoFixWorksBtn', 'autoFixMampBtn'];
+            
+            // Show loading state
+            const originalText = btn.textContent;
+            btn.textContent = '🔍 Diagnosing...';
+            btn.disabled = true;
+            
+            // Clear previous results and disable fix buttons
+            resultsDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+            fixButtons.forEach(id => {
+                const fixBtn = document.getElementById(id);
+                if (fixBtn) {
+                    fixBtn.disabled = true;
+                    fixBtn.style.opacity = '0.6';
+                }
+            });
+            
+            try {
+                const response = await fetch('api.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'diagnose_paths'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentDiagnosis = data.data;
+                    displayDiagnosisResults(data.data);
+                    
+                    // Enable fix buttons if issues found
+                    if (data.data.total_issues > 0) {
+                        fixButtons.forEach(id => {
+                            const fixBtn = document.getElementById(id);
+                            if (fixBtn) {
+                                fixBtn.disabled = false;
+                                fixBtn.style.opacity = '1';
+                            }
+                        });
+                        showNotification(`Found ${data.data.total_issues} issues that can be auto-fixed`, 'warning');
+                    } else {
+                        showNotification('No path issues found! All projects are healthy.', 'success');
+                    }
+                    
+                    // Reset button
+                    btn.textContent = '✅ Diagnosis Complete';
+                    btn.style.background = 'linear-gradient(135deg, #28a745, #20c997)';
+                    
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.style.background = 'linear-gradient(135deg, #ff9800, #f57c00)';
+                        btn.disabled = false;
+                    }, 3000);
+                } else {
+                    throw new Error(data.message || 'Diagnosis failed');
+                }
+            } catch (error) {
+                console.error('Error during diagnosis:', error);
+                
+                // Show error state
+                btn.textContent = '❌ Diagnosis Failed';
+                btn.style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
+                
+                showNotification('Failed to diagnose paths: ' + error.message, 'error');
+                
+                // Reset after delay
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = 'linear-gradient(135deg, #ff9800, #f57c00)';
+                    btn.disabled = false;
+                }, 5000);
+            }
+        }
+        
+        // Display diagnosis results
+        function displayDiagnosisResults(diagnosis) {
+            const resultsDiv = document.getElementById('diagnosisResults');
+            
+            let html = `
+                <div style="background: white; border-radius: 8px; padding: 20px; border: 2px solid #ff9800;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                        <span style="font-size: 24px;">📊</span>
+                        <h4 style="margin: 0; color: #e65100;">Path Diagnosis Results</h4>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                        <div style="background: #e3f2fd; padding: 12px; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: bold; color: #1976d2;">${diagnosis.summary.total_projects}</div>
+                            <div style="font-size: 12px; color: #1565c0;">Total Projects</div>
+                        </div>
+                        <div style="background: ${diagnosis.summary.broken_paths > 0 ? '#ffebee' : '#e8f5e8'}; padding: 12px; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: bold; color: ${diagnosis.summary.broken_paths > 0 ? '#d32f2f' : '#388e3c'};">${diagnosis.summary.broken_paths}</div>
+                            <div style="font-size: 12px; color: ${diagnosis.summary.broken_paths > 0 ? '#c62828' : '#2e7d32'};">Broken Paths</div>
+                        </div>
+                        <div style="background: ${diagnosis.summary.migration_issues > 0 ? '#fff3e0' : '#e8f5e8'}; padding: 12px; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: bold; color: ${diagnosis.summary.migration_issues > 0 ? '#f57c00' : '#388e3c'};">${diagnosis.summary.migration_issues}</div>
+                            <div style="font-size: 12px; color: ${diagnosis.summary.migration_issues > 0 ? '#ef6c00' : '#2e7d32'};">Migration Issues</div>
+                        </div>
+                        <div style="background: ${diagnosis.summary.hosts_issues > 0 ? '#f3e5f5' : '#e8f5e8'}; padding: 12px; border-radius: 6px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: bold; color: ${diagnosis.summary.hosts_issues > 0 ? '#7b1fa2' : '#388e3c'};">${diagnosis.summary.hosts_issues}</div>
+                            <div style="font-size: 12px; color: ${diagnosis.summary.hosts_issues > 0 ? '#6a1b9a' : '#2e7d32'};">Hosts Issues</div>
+                        </div>
+                    </div>
+            `;
+            
+            if (diagnosis.total_issues === 0) {
+                html += `
+                    <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; text-align: center; border-left: 4px solid #4caf50;">
+                        <div style="font-size: 48px; margin-bottom: 15px;">✅</div>
+                        <h4 style="color: #2e7d32; margin: 0;">All Projects Are Healthy!</h4>
+                        <p style="color: #388e3c; margin: 10px 0 0 0;">No path issues found. All virtual hosts are properly configured.</p>
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                            <span style="font-size: 20px;">⚠️</span>
+                            <h5 style="margin: 0; color: #856404;">Issues Found: ${diagnosis.total_issues}</h5>
+                        </div>
+                        <p style="color: #856404; margin: 0; font-size: 14px;">The following issues can be automatically fixed using the buttons above:</p>
+                    </div>
+                    
+                    <div style="max-height: 400px; overflow-y: auto;">
+                `;
+                
+                // Show project issues
+                diagnosis.projects.forEach(project => {
+                    if (project.issues.length > 0) {
+                        let statusColor = project.exists ? '#4caf50' : '#f44336';
+                        let statusIcon = project.exists ? '✅' : '❌';
+                        let statusText = project.exists ? 'Path Exists' : 'Path Missing';
+                        
+                        html += `
+                            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 15px; margin-bottom: 15px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <div style="font-weight: bold; color: #495057;">${project.name}</div>
+                                    <div style="display: flex; align-items: center; gap: 5px;">
+                                        <span style="color: ${statusColor}; font-size: 12px;">${statusIcon} ${statusText}</span>
+                                    </div>
+                                </div>
+                                <div style="font-family: monospace; font-size: 12px; color: #6c757d; background: #e9ecef; padding: 8px; border-radius: 4px; margin-bottom: 10px;">
+                                    📁 ${project.document_root}
+                                </div>
+                                <div style="font-size: 11px; color: #495057;">
+                                    🌐 <strong>Domain:</strong> <a href="http://${project.domain}" target="_blank" style="color: #007bff;">${project.domain}</a>
+                                </div>
+                        `;
+                        
+                        // Show specific issues for this project
+                        project.issues.forEach(issue => {
+                            let issueInfo = getIssueInfo(issue);
+                            html += `
+                                <div style="margin-top: 8px; padding: 8px; background: ${issueInfo.bgColor}; border-radius: 4px; border-left: 3px solid ${issueInfo.borderColor};">
+                                    <div style="font-size: 12px; color: ${issueInfo.textColor}; font-weight: bold;">${issueInfo.icon} ${issueInfo.title}</div>
+                                    <div style="font-size: 11px; color: ${issueInfo.textColor}; margin-top: 4px;">${issueInfo.description}</div>
+                                </div>
+                            `;
+                        });
+                        
+                        html += `</div>`;
+                    }
+                });
+                
+                // Show hosts issues
+                const hostsIssues = diagnosis.issues.filter(issue => issue.type === 'missing_hosts_entry');
+                if (hostsIssues.length > 0) {
+                    html += `
+                        <div style="background: #f3e5f5; border: 1px solid #e1bee7; border-radius: 6px; padding: 15px; margin-bottom: 15px;">
+                            <div style="font-weight: bold; color: #7b1fa2; margin-bottom: 10px;">🌐 Hosts File Issues</div>
+                            <div style="font-size: 13px; color: #6a1b9a; margin-bottom: 10px;">The following domains are missing from your hosts file:</div>
+                    `;
+                    
+                    hostsIssues.forEach(issue => {
+                        html += `
+                            <div style="margin-bottom: 8px; padding: 8px; background: rgba(123, 31, 162, 0.1); border-radius: 4px;">
+                                <div style="font-family: monospace; font-size: 12px; color: #7b1fa2;">127.0.0.1    ${issue.domain}</div>
+                                <div style="font-size: 11px; color: #6a1b9a; margin-top: 4px;">Project: ${issue.project}</div>
+                            </div>
+                        `;
+                    });
+                    
+                    html += `</div>`;
+                }
+                
+                html += `</div>`;
+            }
+            
+            html += `</div>`;
+            
+            resultsDiv.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
+        
+        // Get issue information for display
+        function getIssueInfo(issueType) {
+            const issueMap = {
+                'document_root_missing': {
+                    icon: '📁❌',
+                    title: 'Document Root Missing',
+                    description: 'The project folder does not exist at the configured path.',
+                    bgColor: '#ffebee',
+                    borderColor: '#f44336',
+                    textColor: '#c62828'
+                },
+                'pointing_to_htdocs': {
+                    icon: '🌐⚠️',
+                    title: 'Pointing to MAMP htdocs',
+                    description: 'Project is configured to use MAMP default htdocs directory.',
+                    bgColor: '#fff3e0',
+                    borderColor: '#ff9800',
+                    textColor: '#ef6c00'
+                },
+                'wrong_user_path': {
+                    icon: '👤❌',
+                    title: 'Wrong User Path',
+                    description: 'Project path references a different user directory (migration issue).',
+                    bgColor: '#fff3e0',
+                    borderColor: '#ff9800',
+                    textColor: '#ef6c00'
+                }
+            };
+            
+            return issueMap[issueType] || {
+                icon: '❓',
+                title: 'Unknown Issue',
+                description: 'An unknown issue was detected.',
+                bgColor: '#f5f5f5',
+                borderColor: '#9e9e9e',
+                textColor: '#616161'
+            };
+        }
+        
+        // Auto-fix project paths
+        async function autoFixPaths(fixMode) {
+            if (!currentDiagnosis || currentDiagnosis.total_issues === 0) {
+                showNotification('Please run diagnosis first to identify issues.', 'warning');
+                return;
+            }
+            
+            const btnMap = {
+                'smart': 'autoFixSmartBtn',
+                'works': 'autoFixWorksBtn',
+                'mamp': 'autoFixMampBtn'
+            };
+            
+            const btnId = btnMap[fixMode];
+            const btn = document.getElementById(btnId);
+            
+            if (!btn) return;
+            
+            // Show confirmation dialog
+            const modeDescriptions = {
+                'smart': 'Smart Fix will try to find your projects in common locations (Works, Documents, Desktop) and create placeholder directories if needed.',
+                'works': 'Works Fix will redirect all broken paths to your ~/Works directory and create placeholder directories.',
+                'mamp': 'MAMP Fix will move all projects to /Applications/MAMP/htdocs/projects/ directory and create placeholder directories.'
+            };
+            
+            const confirmMessage = `🔧 Auto-Fix Confirmation\n\n${modeDescriptions[fixMode]}\n\n⚠️ This will:\n• Update virtual host configurations\n• Create placeholder directories for missing projects\n• Backup your current configuration\n\nProceed with auto-fix?`;
+            
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+            
+            // Show loading state
+            const originalText = btn.textContent;
+            const originalBg = btn.style.background;
+            btn.textContent = '🔄 Fixing...';
+            btn.style.background = 'linear-gradient(135deg, #ffc107, #ffb300)';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('api.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'auto_fix_paths',
+                        fix_mode: fixMode
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Show success
+                    btn.textContent = '✅ Fixed Successfully!';
+                    btn.style.background = 'linear-gradient(135deg, #4caf50, #388e3c)';
+                    
+                    displayAutoFixResults(data.data, fixMode);
+                    showNotification(`Auto-fix completed! ${data.data.fixes_applied?.length || 0} paths updated.`, 'success');
+                    
+                    // Refresh projects list
+                    setTimeout(() => {
+                        projectsCache = null;
+                        loadProjects();
+                        
+                        // Re-run diagnosis to show updated status
+                        setTimeout(() => {
+                            diagnoseProjectPaths();
+                        }, 1000);
+                    }, 2000);
+                    
+                    // Reset button after delay
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.style.background = originalBg;
+                        btn.disabled = false;
+                    }, 5000);
+                } else {
+                    throw new Error(data.message || 'Auto-fix failed');
+                }
+            } catch (error) {
+                console.error('Error during auto-fix:', error);
+                
+                // Show error
+                btn.textContent = '❌ Fix Failed';
+                btn.style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
+                
+                showNotification('Auto-fix failed: ' + error.message, 'error');
+                
+                // Reset button after delay
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = originalBg;
+                    btn.disabled = false;
+                }, 5000);
+            }
+        }
+        
+        // Display auto-fix results
+        function displayAutoFixResults(results, fixMode) {
+            const resultsDiv = document.getElementById('diagnosisResults');
+            
+            const modeNames = {
+                'smart': 'Smart Fix',
+                'works': 'Works Directory Fix',
+                'mamp': 'MAMP Projects Fix'
+            };
+            
+            let html = `
+                <div style="background: white; border-radius: 8px; padding: 20px; border: 2px solid #4caf50;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                        <span style="font-size: 24px;">✅</span>
+                        <h4 style="margin: 0; color: #2e7d32;">${modeNames[fixMode]} Results</h4>
+                    </div>
+                    
+                    <div style="background: #e8f5e8; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #4caf50;">
+                        <div style="color: #2e7d32; font-weight: bold; margin-bottom: 5px;">🎉 Auto-Fix Completed Successfully!</div>
+                        <div style="color: #388e3c; font-size: 14px;">Applied ${results.fixes_applied?.length || 0} fixes to your virtual host configuration.</div>
+                    </div>
+            `;
+            
+            if (results.fixes_applied && results.fixes_applied.length > 0) {
+                html += `
+                    <div style="margin-bottom: 20px;">
+                        <h5 style="color: #495057; margin-bottom: 10px;">📝 Changes Applied:</h5>
+                        <div style="max-height: 300px; overflow-y: auto;">
+                `;
+                
+                results.fixes_applied.forEach(fix => {
+                    html += `
+                        <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 15px; margin-bottom: 10px;">
+                            <div style="font-weight: bold; color: #495057; margin-bottom: 8px;">${fix.project} (${fix.domain})</div>
+                            <div style="margin-bottom: 8px;">
+                                <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">OLD PATH:</div>
+                                <div style="font-family: monospace; font-size: 11px; color: #dc3545; background: #f8d7da; padding: 6px; border-radius: 3px; word-break: break-all;">${fix.old_path}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">NEW PATH:</div>
+                                <div style="font-family: monospace; font-size: 11px; color: #155724; background: #d4edda; padding: 6px; border-radius: 3px; word-break: break-all;">${fix.new_path}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `</div></div>`;
+            }
+            
+            if (results.backup_file) {
+                html += `
+                    <div style="background: #d1ecf1; padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #17a2b8;">
+                        <div style="color: #0c5460; font-size: 13px;">
+                            <strong>💾 Backup Created:</strong><br>
+                            <code style="font-size: 11px; word-break: break-all;">${results.backup_file}</code>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (results.hosts_message) {
+                html += `
+                    <div style="background: #fff3cd; padding: 15px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #ffc107;">
+                        <div style="color: #856404; font-weight: bold; margin-bottom: 8px;">⚠️ Manual Hosts File Update Required</div>
+                        <div style="color: #856404; font-size: 13px; margin-bottom: 10px;">${results.hosts_message}</div>
+                        <button onclick="openHostsFile()" style="
+                            background: #ffc107;
+                            color: #212529;
+                            border: none;
+                            border-radius: 4px;
+                            padding: 6px 12px;
+                            cursor: pointer;
+                            font-size: 12px;
+                            font-weight: bold;
+                        ">📝 Open Hosts File Instructions</button>
+                    </div>
+                `;
+            }
+            
+            if (results.restart_required) {
+                html += `
+                    <div style="background: #f8d7da; padding: 15px; border-radius: 6px; border-left: 4px solid #dc3545;">
+                        <div style="color: #721c24; font-weight: bold; margin-bottom: 8px;">🔄 Apache Restart Required</div>
+                        <div style="color: #721c24; font-size: 13px; margin-bottom: 10px;">Please restart MAMP Apache server to apply the configuration changes.</div>
+                        <button onclick="restartApache()" style="
+                            background: #dc3545;
+                            color: white;
+                            border: none;
+                            border-radius: 4px;
+                            padding: 8px 16px;
+                            cursor: pointer;
+                            font-size: 13px;
+                            font-weight: bold;
+                        ">🔄 Restart Apache Now</button>
+                    </div>
+                `;
+            }
+            
+            html += `</div>`;
+            
+            resultsDiv.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
     </script>
 </body>
 </html>

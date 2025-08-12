@@ -196,6 +196,253 @@ function removeVirtualHost($domain) {
     return file_put_contents($vhostsFile, $newContent) !== false;
 }
 
+/**
+ * Diagnose project path issues
+ */
+function diagnoseProjectPaths() {
+    $vhostsFile = '/Applications/MAMP/conf/apache/extra/httpd-vhosts.conf';
+    if (!file_exists($vhostsFile)) {
+        return ['error' => 'Virtual hosts file not found'];
+    }
+    
+    $content = file_get_contents($vhostsFile);
+    $issues = [];
+    $projects = [];
+    
+    // Extract projects and their paths
+    if (preg_match_all('/# Virtual Host for (.+?)\n.*?DocumentRoot\s+\"([^\"]+)\".*?ServerName\s+([^\s\n]+)/s', $content, $matches, PREG_SET_ORDER)) {
+        foreach ($matches as $match) {
+            $projectName = trim($match[1]);
+            $documentRoot = trim($match[2]);
+            $domain = trim($match[3]);
+            
+            // Skip localhost default
+            if ($domain === 'localhost') continue;
+            
+            $project = [
+                'name' => $projectName,
+                'domain' => $domain,
+                'document_root' => $documentRoot,
+                'exists' => file_exists($documentRoot),
+                'issues' => []
+            ];
+            
+            // Check if path exists
+            if (!file_exists($documentRoot)) {
+                $project['issues'][] = 'document_root_missing';
+                $issues[] = [
+                    'type' => 'missing_document_root',
+                    'project' => $projectName,
+                    'domain' => $domain,
+                    'path' => $documentRoot,
+                    'severity' => 'high'
+                ];
+            }
+            
+            // Check if it's pointing to default htdocs (common issue)
+            if (strpos($documentRoot, '/Applications/MAMP/htdocs') === 0 && $documentRoot !== '/Applications/MAMP/htdocs') {
+                $project['issues'][] = 'pointing_to_htdocs';
+                $issues[] = [
+                    'type' => 'pointing_to_htdocs',
+                    'project' => $projectName,
+                    'domain' => $domain,
+                    'path' => $documentRoot,
+                    'severity' => 'medium'
+                ];
+            }
+            
+            // Check if path contains old user directory (migration issue)
+            if (preg_match('/\/Users\/([^\/]+)\//', $documentRoot, $userMatch)) {
+                $pathUser = $userMatch[1];
+                $currentUser = get_current_user();
+                if ($pathUser !== $currentUser) {
+                    $project['issues'][] = 'wrong_user_path';
+                    $issues[] = [
+                        'type' => 'wrong_user_path',
+                        'project' => $projectName,
+                        'domain' => $domain,
+                        'path' => $documentRoot,
+                        'old_user' => $pathUser,
+                        'current_user' => $currentUser,
+                        'severity' => 'high'
+                    ];
+                }
+            }
+            
+            $projects[] = $project;
+        }
+    }
+    
+    // Check hosts file entries
+    $hostsFile = '/etc/hosts';
+    $hostsContent = file_exists($hostsFile) ? file_get_contents($hostsFile) : '';
+    $hostsIssues = [];
+    
+    foreach ($projects as $project) {
+        if (strpos($hostsContent, $project['domain']) === false) {
+            $hostsIssues[] = [
+                'type' => 'missing_hosts_entry',
+                'project' => $project['name'],
+                'domain' => $project['domain'],
+                'severity' => 'medium'
+            ];
+        }
+    }
+    
+    return [
+        'projects' => $projects,
+        'issues' => array_merge($issues, $hostsIssues),
+        'total_issues' => count($issues) + count($hostsIssues),
+        'summary' => [
+            'total_projects' => count($projects),
+            'broken_paths' => count(array_filter($projects, fn($p) => !$p['exists'])),
+            'migration_issues' => count(array_filter($issues, fn($i) => $i['type'] === 'wrong_user_path')),
+            'hosts_issues' => count($hostsIssues)
+        ]
+    ];
+}
+
+/**
+ * Auto-fix project path issues
+ */
+function autoFixProjectPaths($fixMode = 'smart') {
+    $diagnosis = diagnoseProjectPaths();
+    
+    if ($diagnosis['total_issues'] === 0) {
+        return ['success' => true, 'message' => 'No issues found to fix', 'fixes_applied' => []];
+    }
+    
+    $vhostsFile = '/Applications/MAMP/conf/apache/extra/httpd-vhosts.conf';
+    $backupFile = '/Applications/MAMP/htdocs/projects/backups/vhosts_backup_autofix_' . date('Y-m-d_H-i-s') . '.conf';
+    
+    // Create backup
+    if (!is_dir(dirname($backupFile))) {
+        mkdir(dirname($backupFile), 0755, true);
+    }
+    copy($vhostsFile, $backupFile);
+    
+    $content = file_get_contents($vhostsFile);
+    $fixesApplied = [];
+    $currentUser = get_current_user();
+    $userHome = $_SERVER['HOME'] ?? '/Users/' . $currentUser;
+    
+    foreach ($diagnosis['issues'] as $issue) {
+        if ($issue['type'] === 'wrong_user_path' || $issue['type'] === 'missing_document_root') {
+            $oldPath = $issue['path'];
+            $newPath = null;
+            
+            switch ($fixMode) {
+                case 'smart':
+                    // Try to find the project in common locations
+                    $projectBasename = basename($oldPath);
+                    $possiblePaths = [
+                        "$userHome/Works/$projectBasename",
+                        "$userHome/Documents/$projectBasename",
+                        "$userHome/Desktop/$projectBasename",
+                        "$userHome/Developer/$projectBasename",
+                        "/Applications/MAMP/htdocs/projects/$projectBasename"
+                    ];
+                    
+                    foreach ($possiblePaths as $path) {
+                        if (file_exists($path)) {
+                            $newPath = $path;
+                            break;
+                        }
+                    }
+                    
+                    // If not found, create in Works directory
+                    if (!$newPath) {
+                        $newPath = "$userHome/Works/$projectBasename";
+                        if (!is_dir("$userHome/Works")) {
+                            mkdir("$userHome/Works", 0755, true);
+                        }
+                        mkdir($newPath, 0755, true);
+                        file_put_contents("$newPath/index.html", 
+                            "<h1>Project: {$issue['project']}</h1><p>Please copy your project files here.</p>");
+                    }
+                    break;
+                    
+                case 'mamp':
+                    // Move to MAMP projects directory
+                    $projectBasename = basename($oldPath);
+                    $newPath = "/Applications/MAMP/htdocs/projects/$projectBasename";
+                    if (!is_dir('/Applications/MAMP/htdocs/projects')) {
+                        mkdir('/Applications/MAMP/htdocs/projects', 0755, true);
+                    }
+                    if (!file_exists($newPath)) {
+                        mkdir($newPath, 0755, true);
+                        file_put_contents("$newPath/index.html", 
+                            "<h1>Project: {$issue['project']}</h1><p>Please copy your project files here.</p>");
+                    }
+                    break;
+                    
+                case 'works':
+                    // Move to Works directory
+                    $projectBasename = basename($oldPath);
+                    $newPath = "$userHome/Works/$projectBasename";
+                    if (!is_dir("$userHome/Works")) {
+                        mkdir("$userHome/Works", 0755, true);
+                    }
+                    if (!file_exists($newPath)) {
+                        mkdir($newPath, 0755, true);
+                        file_put_contents("$newPath/index.html", 
+                            "<h1>Project: {$issue['project']}</h1><p>Please copy your project files here.</p>");
+                    }
+                    break;
+            }
+            
+            if ($newPath) {
+                // Update DocumentRoot
+                $content = preg_replace(
+                    '/DocumentRoot\s+\"' . preg_quote($oldPath, '/') . '\"/i',
+                    'DocumentRoot "' . $newPath . '"',
+                    $content
+                );
+                
+                // Update Directory path
+                $content = preg_replace(
+                    '/<Directory\s+\"' . preg_quote($oldPath, '/') . '\">/i',
+                    '<Directory "' . $newPath . '">',
+                    $content
+                );
+                
+                $fixesApplied[] = [
+                    'project' => $issue['project'],
+                    'domain' => $issue['domain'],
+                    'old_path' => $oldPath,
+                    'new_path' => $newPath,
+                    'action' => 'path_updated'
+                ];
+            }
+        }
+    }
+    
+    // Save updated vhosts file
+    file_put_contents($vhostsFile, $content);
+    
+    // Try to fix hosts entries (note: this requires manual intervention for sudo)
+    $hostsMessage = '';
+    $hostsCommands = [];
+    foreach ($diagnosis['issues'] as $issue) {
+        if ($issue['type'] === 'missing_hosts_entry') {
+            $hostsCommands[] = "echo '127.0.0.1\t{$issue['domain']}' | sudo tee -a /etc/hosts";
+        }
+    }
+    
+    if (!empty($hostsCommands)) {
+        $hostsMessage = 'Hosts file entries need manual addition. Run these commands: ' . implode('; ', $hostsCommands);
+    }
+    
+    return [
+        'success' => true,
+        'message' => 'Auto-fix completed successfully',
+        'fixes_applied' => $fixesApplied,
+        'backup_file' => $backupFile,
+        'hosts_message' => $hostsMessage,
+        'restart_required' => true
+    ];
+}
+
 function removeHostsEntry($domain) {
     $hostsFile = '/etc/hosts';
     $hostsContent = file_get_contents($hostsFile);
@@ -886,6 +1133,46 @@ if ($method === 'GET') {
             'logs' => $logs,
             'timestamp' => date('Y-m-d H:i:s')
         ]);
+        
+    } elseif ($action === 'diagnose_paths') {
+        // Diagnose project path issues
+        try {
+            $diagnosis = diagnoseProjectPaths();
+            
+            if (isset($diagnosis['error'])) {
+                respond(false, $diagnosis['error']);
+            }
+            
+            respond(true, 'Project paths diagnosis completed', $diagnosis);
+            
+        } catch (Exception $e) {
+            respond(false, 'Error during diagnosis: ' . $e->getMessage());
+        }
+        
+    } elseif ($action === 'auto_fix_paths') {
+        // Auto-fix project path issues
+        $fixMode = $input['fix_mode'] ?? 'smart';
+        
+        try {
+            $result = autoFixProjectPaths($fixMode);
+            
+            if ($result['success']) {
+                $message = $result['message'];
+                if (!empty($result['fixes_applied'])) {
+                    $message .= " Applied " . count($result['fixes_applied']) . " fixes.";
+                }
+                if (!empty($result['hosts_message'])) {
+                    $message .= " Note: " . $result['hosts_message'];
+                }
+                
+                respond(true, $message, $result);
+            } else {
+                respond(false, $result['message'] ?? 'Auto-fix failed', $result);
+            }
+            
+        } catch (Exception $e) {
+            respond(false, 'Error during auto-fix: ' . $e->getMessage());
+        }
         
     } else {
         respond(false, 'Invalid action');

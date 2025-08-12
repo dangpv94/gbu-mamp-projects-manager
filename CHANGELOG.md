@@ -5,6 +5,37 @@ All notable changes to MAMP Projects Manager will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.1] - 2025-08-12
+
+### 🐛 Bug Fixes
+
+#### Fixed Migration Script Function Order
+- **Fixed "Command Not Found" Error**: Corrected function definition order in `fix-project-paths.sh`
+- **Proper Function Placement**: Moved all function definitions before their usage
+- **Script Structure**: Reorganized script to define functions first, then handle user choices
+- **Menu Handling**: Fixed menu choice execution that was calling undefined functions
+
+#### Script Improvements
+- **Execution Order**: Functions are now properly defined before being called
+- **Error Prevention**: Eliminated bash "command not found" errors during migration
+- **User Experience**: Migration options now work correctly without errors
+- **Testing**: Verified all migration modes (Interactive, Custom Directory, MAMP Projects) work properly
+
+### 🔧 Technical Changes
+
+- **Function Organization**: Reorganized `fix-project-paths.sh` with proper function definition order
+- **Script Validation**: Added proper executable permissions to migration script
+- **Error Handling**: Improved error detection and prevention in migration workflow
+
+### 📋 Verification
+
+- **All Migration Options Work**: Interactive fixing, custom directory, and MAMP projects options tested
+- **No Command Errors**: Script runs without "command not found" errors
+- **Backup System**: Configuration backup system continues to work properly
+- **Path Detection**: Virtual host analysis and project detection work correctly
+
+---
+
 ## [2.1.0] - 2025-08-12
 
 ### ✨ Enhanced Features

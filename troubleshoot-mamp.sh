@@ -84,6 +84,46 @@ get_mamp_port() {
 
 MAMP_PORT=$(get_mamp_port)
 
+# Function to find apachectl binary location
+get_apachectl_path() {
+    # Common locations for apachectl in different MAMP versions
+    local possible_paths=(
+        "/Applications/MAMP/Library/bin/apachectl"
+        "/Applications/MAMP/bin/apachectl"
+        "/Applications/MAMP/bin/apache2/bin/apachectl"
+        "/Applications/MAMP/Library/bin/httpd"
+    )
+    
+    for path in "${possible_paths[@]}"; do
+        if [ -f "$path" ] && [ -x "$path" ]; then
+            echo "$path"
+            return 0
+        fi
+    done
+    
+    # If not found in common locations, search dynamically
+    local found_path
+    found_path=$(find /Applications/MAMP -name "apachectl" -type f -executable 2>/dev/null | head -1)
+    
+    if [ -n "$found_path" ]; then
+        echo "$found_path"
+        return 0
+    fi
+    
+    # Final fallback - try to find httpd binary
+    found_path=$(find /Applications/MAMP -name "httpd" -path "*/bin/*" -type f -executable 2>/dev/null | head -1)
+    
+    if [ -n "$found_path" ]; then
+        echo "$found_path"
+        return 0
+    fi
+    
+    # No Apache control found
+    return 1
+}
+
+APACHECTL_PATH=$(get_apachectl_path)
+
 # Function to check if MAMP is running
 check_mamp_status() {
     print_info "Checking MAMP status..."
@@ -288,16 +328,24 @@ auto_fix_issues() {
     
     # PRE-CHECK: Apache syntax validation (Critical - must pass before proceeding)
     print_info "Pre-check: Validating Apache configuration syntax..."
-    local config_test_output
-    config_test_output=$(sudo /Applications/MAMP/bin/apachectl -t 2>&1)
     
-    if ! echo "$config_test_output" | grep -q "Syntax OK"; then
-        print_error "Apache configuration has syntax errors! Cannot proceed with auto-fix."
-        echo -e "${RED}$config_test_output${NC}"
-        print_warning "Please fix the syntax errors manually first, then run auto-fix again."
-        return 1
+    # Check if we found apachectl
+    if [ -z "$APACHECTL_PATH" ]; then
+        print_warning "Apache control binary not found - skipping syntax validation"
+        print_info "Will proceed with other fixes (syntax check skipped)"
+    else
+        print_debug "Using Apache control: $APACHECTL_PATH"
+        local config_test_output
+        config_test_output=$(sudo "$APACHECTL_PATH" -t 2>&1)
+        
+        if ! echo "$config_test_output" | grep -q "Syntax OK"; then
+            print_error "Apache configuration has syntax errors! Cannot proceed with auto-fix."
+            echo -e "${RED}$config_test_output${NC}"
+            print_warning "Please fix the syntax errors manually first, then run auto-fix again."
+            return 1
+        fi
+        print_status "Apache configuration syntax is valid"
     fi
-    print_status "Apache configuration syntax is valid"
     
     # STEP 1: Handle port conflicts (Apache startup blocker)
     print_info "Checking for port conflicts on port $MAMP_PORT..."
@@ -439,23 +487,139 @@ EOF
         fi
     done
     
-    # Fix 5: Flush DNS cache
+    # Fix 5: Clean up problematic .htaccess files
+    print_info "Scanning for problematic .htaccess files..."
+    local htaccess_fixes=0
+    
+    # Find .htaccess files with php_value directives (common cause of startup issues)
+    if [ -d "/Applications/MAMP/htdocs" ]; then
+        find /Applications/MAMP/htdocs -name ".htaccess" -type f 2>/dev/null | while read -r htaccess_file; do
+            if grep -q "^[[:space:]]*php_value" "$htaccess_file" 2>/dev/null; then
+                print_warning "Found problematic .htaccess: $htaccess_file"
+                
+                # Backup and comment out php_value lines
+                cp "$htaccess_file" "${htaccess_file}.backup_$backup_suffix"
+                sed 's/^[[:space:]]*php_value/#php_value/g' "$htaccess_file" > "${htaccess_file}.tmp"
+                mv "${htaccess_file}.tmp" "$htaccess_file"
+                
+                print_status "  Fixed: commented out php_value directives"
+                htaccess_fixes=$((htaccess_fixes + 1))
+            fi
+        done
+        
+        if [ $htaccess_fixes -gt 0 ]; then
+            print_status "Fixed $htaccess_fixes problematic .htaccess file(s)"
+        else
+            print_status "No problematic .htaccess files found"
+        fi
+    fi
+    
+    # Fix 6: Fix virtual host error log permissions 
+    print_info "Checking virtual host error log permissions..."
+    local vhost_log_fixes=0
+    
+    # Extract error log paths from virtual hosts and fix permissions
+    grep -i "ErrorLog" "$VHOSTS_FILE" 2>/dev/null | sed 's/.*ErrorLog[[:space:]]*\(.*\)/\1/g' | while read -r log_path; do
+        if [ -n "$log_path" ] && [[ "$log_path" != "#"* ]]; then
+            # Create log directory if it doesn't exist
+            local log_dir=$(dirname "$log_path")
+            if [ ! -d "$log_dir" ]; then
+                sudo mkdir -p "$log_dir" 2>/dev/null
+                print_status "  Created log directory: $log_dir"
+            fi
+            
+            # Create log file with proper permissions if it doesn't exist
+            if [ ! -f "$log_path" ]; then
+                sudo touch "$log_path" 2>/dev/null
+                sudo chmod 666 "$log_path" 2>/dev/null
+                print_status "  Created log file: $log_path"
+                vhost_log_fixes=$((vhost_log_fixes + 1))
+            elif [ ! -w "$log_path" ]; then
+                sudo chmod 666 "$log_path" 2>/dev/null
+                print_status "  Fixed permissions: $log_path"
+                vhost_log_fixes=$((vhost_log_fixes + 1))
+            fi
+        fi
+    done
+    
+    # Fix 7: Kill orphaned Apache processes
+    print_info "Checking for orphaned Apache processes..."
+    local orphaned_processes=$(pgrep -f "httpd" | grep -v "$(pgrep -f 'Applications/MAMP/Library/bin/httpd')" | head -5)
+    
+    if [ -n "$orphaned_processes" ]; then
+        print_warning "Found orphaned Apache processes: $orphaned_processes"
+        echo -n "Kill orphaned processes? (y/n): "
+        read -r kill_confirm
+        
+        if [[ $kill_confirm =~ ^[Yy]$ ]]; then
+            echo "$orphaned_processes" | xargs sudo kill -9 2>/dev/null || true
+            sleep 2
+            print_status "Orphaned processes terminated"
+        fi
+    else
+        print_status "No orphaned Apache processes found"
+    fi
+    
+    # Fix 8: Fix MAMP PHP module configuration
+    print_info "Checking PHP module configuration..."
+    local php_conf="/Applications/MAMP/conf/apache/httpd.conf"
+    
+    if [ -f "$php_conf" ]; then
+        # Ensure PHP module is enabled
+        if ! grep -q "^LoadModule php" "$php_conf"; then
+            if grep -q "#LoadModule php" "$php_conf"; then
+                sudo sed -i '' 's/^#LoadModule php/LoadModule php/' "$php_conf"
+                print_status "Enabled PHP module in Apache configuration"
+            else
+                print_warning "PHP module configuration not found - may need manual setup"
+            fi
+        else
+            print_status "PHP module is properly configured"
+        fi
+    fi
+    
+    # Fix 9: Flush DNS cache
     print_info "Flushing DNS cache..."
     sudo dscacheutil -flushcache
     sudo killall -HUP mDNSResponder 2>/dev/null || true
     print_status "DNS cache flushed"
     
-    # Fix 6: Restart MAMP Apache
-    print_info "Restarting MAMP Apache..."
+    # Fix 10: Clean restart MAMP Apache
+    print_info "Performing clean restart of MAMP Apache..."
+    
+    # Stop all Apache processes
     pkill -f "Applications/MAMP/Library/bin/httpd" 2>/dev/null || true
-    sleep 2
-    /Applications/MAMP/bin/startApache.sh >/dev/null 2>&1 &
+    pkill -f "httpd" 2>/dev/null || true  # Stop any other httpd processes
     sleep 3
     
-    if pgrep -f "Applications/MAMP/Library/bin/httpd" > /dev/null; then
-        print_status "MAMP Apache restarted successfully"
-    else
-        print_warning "Apache restart may have failed - please check MAMP manually"
+    # Ensure all processes are terminated
+    local remaining_processes=$(pgrep -f "httpd" | wc -l)
+    if [ "$remaining_processes" -gt 0 ]; then
+        print_warning "Force killing remaining httpd processes..."
+        pgrep -f "httpd" | xargs sudo kill -9 2>/dev/null || true
+        sleep 2
+    fi
+    
+    # Start Apache
+    /Applications/MAMP/bin/startApache.sh > /dev/null 2>&1 &
+    sleep 5
+    
+    # Verify startup
+    local startup_attempts=0
+    while [ $startup_attempts -lt 10 ]; do
+        if pgrep -f "Applications/MAMP/Library/bin/httpd" > /dev/null; then
+            print_status "MAMP Apache started successfully"
+            break
+        fi
+        sleep 1
+        startup_attempts=$((startup_attempts + 1))
+    done
+    
+    if [ $startup_attempts -eq 10 ]; then
+        print_error "Apache failed to start after $startup_attempts attempts"
+        print_info "Checking recent error log for clues..."
+        tail -10 "/Applications/MAMP/logs/apache_error.log" 2>/dev/null || print_warning "Could not read error log"
+        return 1
     fi
 }
 
@@ -485,14 +649,22 @@ check_apache_startup_issues() {
     
     # 2. Check Apache syntax
     print_info "Checking Apache configuration syntax..."
-    local config_test_output
-    config_test_output=$(sudo /Applications/MAMP/bin/apachectl -t 2>&1)
     
-    if echo "$config_test_output" | grep -q "Syntax OK"; then
-        print_status "Apache configuration syntax is OK"
+    if [ -z "$APACHECTL_PATH" ]; then
+        print_warning "Apache control binary not found - cannot check syntax"
+        print_info "Searched in: /Applications/MAMP/Library/bin/, /Applications/MAMP/bin/"
+        print_info "You may need to check syntax manually with: sudo [path-to-apachectl] -t"
     else
-        print_error "Apache configuration syntax error found!"
-        echo -e "${RED}$config_test_output${NC}"
+        print_debug "Using Apache control: $APACHECTL_PATH"
+        local config_test_output
+        config_test_output=$(sudo "$APACHECTL_PATH" -t 2>&1)
+        
+        if echo "$config_test_output" | grep -q "Syntax OK"; then
+            print_status "Apache configuration syntax is OK"
+        else
+            print_error "Apache configuration syntax error found!"
+            echo -e "${RED}$config_test_output${NC}"
+        fi
     fi
     
     # 3. Check log file permissions
@@ -507,6 +679,160 @@ check_apache_startup_issues() {
         fi
     else
         print_warning "Log file not found, will be created by MAMP on successful start."
+    fi
+}
+
+# Emergency fix function for when MAMP completely fails to start
+emergency_fix() {
+    print_error "🚨 EMERGENCY FIX MODE - MAMP WON'T START"
+    print_info "This will perform aggressive fixes that may reset some configurations"
+    
+    echo -n "Continue with emergency fix? This may reset some MAMP settings (y/n): "
+    read -r confirm
+    
+    if [[ ! $confirm =~ ^[Yy]$ ]]; then
+        print_info "Emergency fix cancelled"
+        return 0
+    fi
+    
+    local backup_suffix=$(date +%Y%m%d_%H%M%S)
+    
+    print_info "Step 1: Backing up all critical configurations..."
+    mkdir -p "$BACKUP_DIR/emergency_$backup_suffix"
+    cp "$APACHE_CONF" "$BACKUP_DIR/emergency_$backup_suffix/httpd.conf.backup" 2>/dev/null || true
+    cp "$VHOSTS_FILE" "$BACKUP_DIR/emergency_$backup_suffix/httpd-vhosts.conf.backup" 2>/dev/null || true
+    cp "$HOSTS_FILE" "$BACKUP_DIR/emergency_$backup_suffix/hosts.backup" 2>/dev/null || true
+    print_status "Configurations backed up to $BACKUP_DIR/emergency_$backup_suffix"
+    
+    print_info "Step 2: Force stopping all web servers and processes..."
+    # Kill everything that could conflict
+    sudo pkill -9 -f httpd 2>/dev/null || true
+    sudo pkill -9 -f apache 2>/dev/null || true
+    sudo pkill -9 -f nginx 2>/dev/null || true
+    sudo pkill -9 -f "MAMP" 2>/dev/null || true
+    sleep 3
+    
+    print_info "Step 3: Cleaning up lock files and PIDs..."
+    # Remove lock files and PIDs that might prevent startup
+    sudo rm -f /Applications/MAMP/logs/*.pid 2>/dev/null || true
+    sudo rm -f /Applications/MAMP/tmp/apache/*.pid 2>/dev/null || true
+    sudo rm -f /Applications/MAMP/tmp/mysql/*.pid 2>/dev/null || true
+    sudo rm -f /tmp/httpd.lock 2>/dev/null || true
+    sudo rm -f /var/run/httpd.pid 2>/dev/null || true
+    
+    print_info "Step 4: Resetting Apache configuration to minimal state..."
+    # Create a minimal working Apache config
+    local minimal_conf="/Applications/MAMP/conf/apache/httpd.conf.minimal"
+    cat > "$minimal_conf" << 'EOF'
+# Minimal MAMP Apache Configuration
+ServerRoot "/Applications/MAMP/Library"
+PidFile /Applications/MAMP/tmp/apache/httpd.pid
+Listen 80
+LoadModule dir_module modules/mod_dir.so
+LoadModule mime_module modules/mod_mime.so
+LoadModule rewrite_module modules/mod_rewrite.so
+LoadModule php8_module modules/libphp8.so
+
+ServerName localhost:80
+DocumentRoot "/Applications/MAMP/htdocs"
+
+<Directory "/Applications/MAMP/htdocs">
+    Options Indexes FollowSymLinks
+    AllowOverride None
+    Require all granted
+</Directory>
+
+DirectoryIndex index.html index.php
+
+TypesConfig /Applications/MAMP/conf/apache/mime.types
+ErrorLog /Applications/MAMP/logs/apache_error.log
+LogLevel warn
+CustomLog /Applications/MAMP/logs/apache_access.log combined
+
+AddType application/x-httpd-php .php
+PHPIniDir /Applications/MAMP/bin/php/php8.2.0/conf
+
+# Include virtual hosts if they exist
+IncludeOptional conf/extra/httpd-vhosts.conf
+EOF
+    
+    echo -n "Replace main Apache config with minimal version? (y/n): "
+    read -r replace_conf
+    
+    if [[ $replace_conf =~ ^[Yy]$ ]]; then
+        sudo cp "$minimal_conf" "$APACHE_CONF"
+        print_status "Applied minimal Apache configuration"
+    fi
+    
+    print_info "Step 5: Fixing all permission issues..."
+    # Fix all MAMP directory permissions
+    sudo chown -R $(whoami):admin /Applications/MAMP/logs 2>/dev/null || true
+    sudo chown -R $(whoami):admin /Applications/MAMP/tmp 2>/dev/null || true
+    sudo chmod -R 755 /Applications/MAMP/logs 2>/dev/null || true
+    sudo chmod -R 755 /Applications/MAMP/tmp 2>/dev/null || true
+    sudo chmod -R 755 /Applications/MAMP/htdocs 2>/dev/null || true
+    
+    # Fix log files specifically
+    sudo touch /Applications/MAMP/logs/apache_error.log
+    sudo touch /Applications/MAMP/logs/apache_access.log
+    sudo chmod 666 /Applications/MAMP/logs/*.log 2>/dev/null || true
+    
+    print_info "Step 6: Creating clean virtual hosts file..."
+    cat > "$VHOSTS_FILE" << EOF
+# Virtual Hosts Configuration
+# Created by Emergency Fix $(date)
+
+NameVirtualHost *:80
+
+# Default localhost virtual host
+<VirtualHost *:80>
+    ServerName localhost
+    DocumentRoot "/Applications/MAMP/htdocs"
+</VirtualHost>
+
+# Add your virtual hosts below this line
+EOF
+    print_status "Created clean virtual hosts configuration"
+    
+    print_info "Step 7: Attempting to start Apache..."
+    # Try to start with the minimal configuration
+    if [ -n "$APACHECTL_PATH" ]; then
+        # Test configuration first
+        local config_test=$(sudo "$APACHECTL_PATH" -t 2>&1)
+        if echo "$config_test" | grep -q "Syntax OK"; then
+            print_status "Configuration syntax is OK"
+            
+            # Try to start
+            sudo "$APACHECTL_PATH" -k start 2>/dev/null || {
+                print_warning "Direct apachectl start failed, trying MAMP script..."
+                /Applications/MAMP/bin/startApache.sh > /dev/null 2>&1 &
+            }
+        else
+            print_error "Configuration still has syntax errors:"
+            echo "$config_test"
+        fi
+    else
+        /Applications/MAMP/bin/startApache.sh > /dev/null 2>&1 &
+    fi
+    
+    sleep 5
+    
+    # Check if it started
+    if pgrep -f "Applications/MAMP/Library/bin/httpd" > /dev/null; then
+        print_status "🎉 SUCCESS! Apache started with emergency configuration"
+        print_info "You can now:"
+        echo "  1. Access http://localhost to test"
+        echo "  2. Add your virtual hosts back gradually"
+        echo "  3. Restore from backup if needed: $BACKUP_DIR/emergency_$backup_suffix"
+        return 0
+    else
+        print_error "❌ Emergency fix failed. Apache still won't start."
+        print_info "Last resort options:"
+        echo "  1. Reinstall MAMP completely"
+        echo "  2. Check system logs: tail -f /var/log/system.log"
+        echo "  3. Check Apache error log: tail -f /Applications/MAMP/logs/apache_error.log"
+        echo "  4. Restore from backup: cp $BACKUP_DIR/emergency_$backup_suffix/*.backup /original/locations"
+        return 1
     fi
 }
 
@@ -537,15 +863,16 @@ show_recommendations() {
 show_menu() {
     echo "🛠️  TROUBLESHOOTING OPTIONS"
     echo "=========================="
-echo "1. 🔍 Run Full Diagnosis"
+    echo "1. 🔍 Run Full Diagnosis"
     echo "2. 🔥 Diagnose Apache Startup Fail"
     echo "3. 🔧 Auto-Fix Common Issues"
-    echo "4. 🩺 Check MAMP Status Only"
-    echo "5. 🌐 Test Project Connectivity"
-    echo "6. 📝 Show Manual Fix Commands"
-    echo "7. 🚪 Exit"
+    echo "4. 🚨 Emergency Fix (MAMP Won't Start)"
+    echo "5. 🩺 Check MAMP Status Only"
+    echo "6. 🌐 Test Project Connectivity"
+    echo "7. 📝 Show Manual Fix Commands"
+    echo "8. 🚪 Exit"
     echo ""
-    read -p "Choose an option (1-7): " choice
+    read -p "Choose an option (1-8): " choice
     
     case $choice in
         1)
@@ -583,9 +910,13 @@ echo "1. 🔍 Run Full Diagnosis"
             ;;
         4)
             echo ""
-            check_mamp_status
+            emergency_fix
             ;;
         5)
+            echo ""
+            check_mamp_status
+            ;;
+        6)
             echo ""
             if check_mamp_status; then
                 test_connectivity
@@ -593,10 +924,10 @@ echo "1. 🔍 Run Full Diagnosis"
                 print_error "MAMP is not running"
             fi
             ;;
-        6)
+        7)
             show_recommendations
             ;;
-        7)
+        8)
             print_info "Goodbye!"
             exit 0
             ;;

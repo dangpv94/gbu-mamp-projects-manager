@@ -27,10 +27,13 @@ Script này sẽ tự động:
 ### Menu các tùy chọn:
 
 1. **🔍 Run Full Diagnosis** - Chẩn đoán toàn bộ hệ thống
-2. **🔧 Auto-Fix Common Issues** - Tự động sửa lỗi phổ biến
-3. **🩺 Check MAMP Status Only** - Kiểm tra trạng thái MAMP
-4. **🌐 Test Project Connectivity** - Test kết nối project
-5. **📝 Show Manual Fix Commands** - Hiện lệnh sửa thủ công
+2. **🔥 Diagnose Apache Startup Fail** - Chẩn đoán lỗi startup của Apache
+3. **🔧 Auto-Fix Common Issues** - Tự động sửa lỗi phổ biến
+4. **🚨 Emergency Fix (MAMP Won't Start)** - Sửa khẩn cấp khi MAMP hoàn toàn không khởi động
+5. **🩺 Check MAMP Status Only** - Kiểm tra trạng thái MAMP
+6. **🌐 Test Project Connectivity** - Test kết nối project
+7. **📝 Show Manual Fix Commands** - Hiện lệnh sửa thủ công
+8. **🚪 Exit** - Thoát
 
 ## ❗ Các vấn đề phổ biến và cách khắc phục
 
@@ -170,22 +173,58 @@ nslookup your-domain.local
 
 ## 🆘 Emergency Recovery
 
-Nếu MAMP không hoạt động sau khi modify:
+### 🚨 Emergency Fix (Option 4) - Khi MAMP hoàn toàn không start
 
-### 1. Restore backup:
+Dành cho trường hợp MAMP hoàn toàn không thể khởi động, script sẽ thực hiện các bước quyết liệt:
+
+**Bước 1: Backup toàn bộ config**
+- Lưu Apache config, virtual hosts, hosts file vào backup folder có timestamp
+- Đảm bảo có thể restore lại nếu cần
+
+**Bước 2: Force stop tất cả web servers**
+- Kill tất cả httpd, apache, nginx, MAMP processes
+- Đảm bảo clean slate trước khi fix
+
+**Bước 3: Dọn lock files và PIDs**
+- Xóa các .pid files trong /Applications/MAMP/
+- Xóa system lock files có thể block startup
+
+**Bước 4: Reset về config tối giản**
+- Tạo Apache config minimal chỉ với modules cần thiết
+- Tùy chọn replace config hiện tại
+
+**Bước 5: Sửa tất cả permissions**
+- Fix ownership và permissions cho logs/, tmp/, htdocs/
+- Set proper permissions cho log files
+
+**Bước 6: Tạo lại virtual hosts file sạch**
+- Tạo file vhosts minimal chỉ có localhost
+- Ready để add lại virtual hosts từ từ
+
+**Bước 7: Thử start với config tối giản**
+- Test syntax trước khi start
+- Fallback qua nhiều methods khác nhau
+- Kiểm tra startup thành công
+
+### Manual Recovery nếu cần:
+
 ```bash
+# 1. Restore backup manually
 # Backup files được lưu tại:
-/Applications/MAMP/htdocs/projects/backups/
+/Applications/MAMP/htdocs/projects/backups/emergency_YYYYMMDD_HHMMSS/
 
 # Restore virtual hosts
-sudo cp backup_file.conf /Applications/MAMP/conf/apache/extra/httpd-vhosts.conf
+sudo cp emergency_backup/httpd-vhosts.conf.backup /Applications/MAMP/conf/apache/extra/httpd-vhosts.conf
 
-# Restore hosts file
-sudo cp backup_hosts /etc/hosts
+# Restore hosts file  
+sudo cp emergency_backup/hosts.backup /etc/hosts
+
+# Restore Apache config
+sudo cp emergency_backup/httpd.conf.backup /Applications/MAMP/conf/apache/httpd.conf
 ```
 
-### 2. Reset MAMP config:
 ```bash
+# 2. Complete reset (last resort)
 # Stop MAMP
 pkill -f "Applications/MAMP"
 

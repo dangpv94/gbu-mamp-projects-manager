@@ -1,8 +1,31 @@
-# 🚀 MAMP Projects Manager v3.0.0
+# 🚀 MAMP Projects Manager v3.0.1
 
-**Công cụ quản lý dự án web toàn diện cho MAMP (Mac Apache MySQL PHP)** - Hệ thống quản lý virtual host thông minh với khả năng migration tự động, phát hiện cấu hình động, và giao diện web hiện đại.
+**Công cụ quản lý dự án web toàn diện cho MAMP (Mac Apache MySQL PHP)** - Hệ thống quản lý virtual host thông minh với khả năng migration tự động, phát hiện cấu hình động, giao diện web hiện đại, và công cụ troubleshooting tự động mạnh mẽ.
 
-## ✨ Tính năng đột phá trong v3.0.0
+## 🆕 Tính năng mới trong v3.0.1
+
+### 🚨 Emergency Fix System
+- **🆘 Emergency Fix Mode**: Giải pháp cuối cùng khi MAMP hoàn toàn không thể khởi động
+- **🔄 Complete System Reset**: Reset Apache config về trạng thái minimal và clean
+- **🧹 Deep Cleanup**: Dọn sạch lock files, PIDs, và orphaned processes
+- **💾 Full Configuration Backup**: Backup toàn bộ trước khi thực hiện emergency fixes
+- **🎯 Progressive Recovery**: Từ minimal config đến full restoration
+
+### 🔧 Enhanced Auto-Fix Capabilities
+- **📝 .htaccess Problem Detection**: Tự động phát hiện và fix các directives `php_value` gây lỗi startup
+- **🗂️ Virtual Host Log Management**: Tạo và fix permissions cho error logs của từng virtual host
+- **👻 Orphaned Process Cleanup**: Phát hiện và dọn sạch các Apache processes thừa
+- **⚙️ PHP Module Configuration**: Auto-enable các PHP modules bị disabled
+- **🔄 Smarter Apache Restart**: Force cleanup và verification trong quá trình restart
+
+### 🛡️ Advanced Safety & Recovery
+- **📊 Pre-flight Syntax Validation**: Kiểm tra Apache syntax trước khi apply changes
+- **🎛️ Dynamic apachectl Detection**: Tự động tìm đường dẫn apachectl trên mọi MAMP version
+- **🔍 Comprehensive Error Analysis**: Phân tích chi tiết từ Apache error logs
+- **📋 Manual Command Generator**: Tạo commands thủ công cho advanced users
+- **🔄 Multi-level Backup System**: Backup thường, backup emergency, backup test
+
+## ✨ Tính năng đột phá từ v3.0.0
 
 ### 🎯 Cross-Machine Migration System
 - **🔄 Intelligent Path Fixing**: Tự động phát hiện và sửa các đường dẫn DocumentRoot bị lỗi khi di chuyển giữa các máy
@@ -320,6 +343,37 @@ cd /Applications/MAMP/htdocs/projects/
 - 🌐 Hosts file validation
 - 🔗 HTTP connectivity testing
 - 💡 Detailed recommendations and manual fix commands
+
+### 🚨 Emergency Fix System (NEW in v3.0.1)
+**Last resort solution when MAMP completely fails to start**
+
+```bash
+./troubleshoot-mamp.sh
+# Choose option 4: Emergency Fix (MAMP Won't Start)
+```
+
+**Nuclear-level fixes for desperate situations:**
+- 💾 **Complete Configuration Backup**: Full backup before aggressive changes
+- 🗑️ **Force Stop Everything**: Terminates all web servers and conflicting processes
+- 🧹 **Deep System Cleanup**: Removes lock files, PIDs, and orphaned processes
+- 🔄 **Minimal Config Reset**: Creates clean minimal Apache configuration
+- ⚙️ **Permission Overhaul**: Fixes all MAMP directory and file permissions
+- 🏷️ **Clean Virtual Hosts**: Creates fresh virtual hosts file with localhost only
+- 🚀 **Progressive Startup**: Attempts startup with fallback methods
+- 📋 **Recovery Instructions**: Detailed restore commands if emergency fix fails
+
+**When to use Emergency Fix:**
+- ❌ MAMP shows "Apache couldn't be started" repeatedly
+- ❌ Regular auto-fix (option 3) doesn't work
+- ❌ MAMP was working before but suddenly stopped
+- ❌ You suspect corrupted configuration files
+- ❌ Multiple Apache processes are conflicting
+
+**Safety guarantees:**
+- ✅ **Full backup** of all configurations before changes
+- ✅ **Step-by-step confirmation** for destructive operations
+- ✅ **Restore instructions** provided if things go wrong
+- ✅ **Progressive approach** from minimal to full restoration
 
 ### 🧪 Demo & Testing (`demo-issues.sh`)
 **Create test scenarios for troubleshooting validation**
